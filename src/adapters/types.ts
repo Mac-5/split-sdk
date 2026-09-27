@@ -145,3 +145,59 @@ export interface InvoiceTransactionBuilder {
   /** Subscribe to builder lifecycle events; returns an unsubscribe function. */
   onEvent(listener: InvoiceTransactionEventListener): () => void;
 }
+
+/**
+ * Configuration for optional request deduplication by nonce.
+ *
+ * Deduplication is opt-in: when omitted (or `enabled` is false) requests
+ * pass through unchanged and no nonce tracking occurs.
+ */
+export interface DeduplicationConfig {
+  /** Whether deduplication is enabled. Defaults to false. */
+  enabled?: boolean;
+  /**
+   * Time-to-live for a tracked nonce, in milliseconds. Once a nonce has been
+   * seen for longer than this window it is evicted and may be accepted again.
+   * When omitted, entries do not expire by time.
+   */
+  ttlMs?: number;
+  /**
+   * Maximum number of nonces retained. When exceeded, the oldest entries are
+   * evicted first (FIFO). When omitted, capacity is unbounded.
+   */
+  maxEntries?: number;
+}
+
+/** Outcome of a deduplication check for a single request nonce. */
+export type DeduplicationOutcome = 'accepted' | 'duplicate';
+
+/** Lifecycle events emitted by the request deduplicator. */
+export type DeduplicationEvent =
+  | { type: 'request-accepted'; nonce: string }
+  | { type: 'duplicate-detected'; nonce: string }
+  | { type: 'nonce-evicted'; nonce: string; reason: 'expired' | 'capacity' };
+
+/** Listener invoked for each emitted deduplication event. */
+export type DeduplicationEventListener = (event: DeduplicationEvent) => void;
+
+/**
+ * Optional request deduplicator keyed by nonce.
+ *
+ * Implementations track previously seen nonces and report whether an incoming
+ * request is a first-seen (accepted) or duplicate request.
+ */
+export interface RequestDeduplicator {
+  /**
+   * Check a nonce and record it when first seen.
+   *
+   * @param nonce - Unique request nonce.
+   * @returns 'accepted' for a first-seen nonce, 'duplicate' otherwise.
+   */
+  check(nonce: string): DeduplicationOutcome;
+  /** Whether the given nonce is currently tracked. */
+  has(nonce: string): boolean;
+  /** Remove all tracked nonces. */
+  clear(): void;
+  /** Subscribe to deduplication events; returns an unsubscribe function. */
+  onEvent(listener: DeduplicationEventListener): () => void;
+}
