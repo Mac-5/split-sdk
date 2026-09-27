@@ -85,3 +85,63 @@ export interface BridgeClient {
   /** Subscribe to bridge lifecycle events; returns an unsubscribe function. */
   onEvent(listener: BridgeEventListener): () => void;
 }
+
+/** A single operation to include in a multi-op invoice transaction. */
+export interface InvoiceOperation {
+  /** Operation kind (e.g. 'payment', 'create-account', 'change-trust'). */
+  type: string;
+  /** Operation-specific parameters. */
+  params: Record<string, unknown>;
+  /** Optional human-readable description of the operation. */
+  description?: string;
+}
+
+/** Parameters for building a complex multi-op invoice transaction. */
+export interface InvoiceTransactionParams {
+  /** Stellar (G...) address funding the transaction. */
+  sourceAddress: string;
+  /** Network passphrase the transaction targets. */
+  network: string;
+  /** Optional memo attached to the transaction. */
+  memo?: string;
+  /** Ordered operations composing the invoice. */
+  operations: InvoiceOperation[];
+}
+
+/** A built, unsigned multi-op invoice transaction. */
+export interface InvoiceTransaction {
+  /** Base64-encoded unsigned transaction XDR. */
+  xdr: string;
+  /** Source account the transaction was built from. */
+  sourceAddress: string;
+  /** Network passphrase the transaction targets. */
+  network: string;
+  /** Operations included in the transaction, in order. */
+  operations: InvoiceOperation[];
+  /** Optional memo attached to the transaction. */
+  memo?: string;
+  /** Build timestamp (ms since epoch). */
+  createdAt: number;
+}
+
+/** Lifecycle events emitted by the invoice transaction builder. */
+export type InvoiceTransactionEvent =
+  | { type: 'build-started'; params: InvoiceTransactionParams }
+  | { type: 'operation-added'; operation: InvoiceOperation; index: number }
+  | { type: 'build-completed'; transaction: InvoiceTransaction }
+  | { type: 'build-failed'; error: string };
+
+/** Listener invoked for each emitted invoice transaction event. */
+export type InvoiceTransactionEventListener = (event: InvoiceTransactionEvent) => void;
+
+/**
+ * Builder for composing complex multi-op invoice transactions.
+ */
+export interface InvoiceTransactionBuilder {
+  /** Append an operation to the invoice. */
+  addOperation(operation: InvoiceOperation): InvoiceTransactionBuilder;
+  /** Build the unsigned transaction from the accumulated operations. */
+  build(): Promise<InvoiceTransaction>;
+  /** Subscribe to builder lifecycle events; returns an unsubscribe function. */
+  onEvent(listener: InvoiceTransactionEventListener): () => void;
+}
